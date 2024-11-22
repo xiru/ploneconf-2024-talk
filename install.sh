@@ -18,18 +18,18 @@ sudo snap install kubectl --classic
 sudo snap install helm --classic
 
 # if this check fails, logout and login again
-sudo usermod -a -G docker `whoami`
+sudo usermod -a -G docker $(whoami)
 docker info >/dev/null 2>&1
 
 curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-: '
+: <<'END_COMMENT'
 Preparing to install k3d into /usr/local/bin
 k3d installed into /usr/local/bin/k3d
 Run 'k3d --help' to see what you can do with it.
-'
+END_COMMENT
 
 k3d --help
-: '
+: <<'END_COMMENT'
 https://k3d.io/
 k3d is a wrapper CLI that helps you to easily create k3s clusters inside docker.
 Nodes of a k3d cluster are docker containers running a k3s image.
@@ -58,10 +58,10 @@ Flags:
       --version      Show k3d and default k3s version
 
 Use "k3d [command] --help" for more information about a command.
-'
+END_COMMENT
 
-k3d cluster create mycluster
-: '
+k3d cluster create mycluster || true
+: <<'END_COMMENT'
 INFO[0000] Prep: Network                                
 INFO[0000] Created network 'k3d-mycluster'              
 INFO[0000] Created image volume k3d-mycluster-images    
@@ -84,18 +84,16 @@ INFO[0022] Injecting records for hostAliases (incl. host.k3d.internal) and for 2
 INFO[0024] Cluster 'mycluster' created successfully!    
 INFO[0024] You can now use it like this:                
 kubectl cluster-info
-'
+END_COMMENT
 
 kubectl get nodes
-
-: '
+: <<'END_COMMENT'
 NAME                     STATUS   ROLES                  AGE    VERSION
 k3d-mycluster-server-0   Ready    control-plane,master   104s   v1.30.4+k3s1
-'
+END_COMMENT
 
 kubectl get pods -A
-
-: '
+: <<'END_COMMENT'
 NAMESPACE     NAME                                      READY   STATUS      RESTARTS   AGE
 kube-system   coredns-576bfc4dc7-6fd7f                  1/1     Running     0          2m23s
 kube-system   helm-install-traefik-crd-rb7n9            0/1     Completed   0          2m23s
@@ -104,4 +102,25 @@ kube-system   local-path-provisioner-6795b5f9d8-x4w9p   1/1     Running     0   
 kube-system   metrics-server-557ff575fb-6s9pb           1/1     Running     0          2m23s
 kube-system   svclb-traefik-b2b009d4-gvcdh              2/2     Running     0          2m8s
 kube-system   traefik-5fb479b77-vht77                   1/1     Running     0          2m8s
-'
+END_COMMENT
+
+# import the relevant docker images on k3d, so we avoid unnecessary
+# downloading of docker images during helm tests execution
+# (and we don't step into docker hub rate limit issues)
+
+for i in $(cat images.txt); do
+  docker pull $i
+  k3d image import $i -c mycluster
+done
+
+helm repo add plone https://plone.github.io/helm-charts
+: <<'END_COMMENT'
+"plone" has been added to your repositories
+END_COMMENT
+
+helm repo update
+: <<'END_COMMENT'
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "plone" chart repository
+Update Complete. ⎈Happy Helming!⎈
+END_COMMENT
