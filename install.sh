@@ -124,3 +124,32 @@ Hang tight while we grab the latest from your chart repositories...
 ...Successfully got an update from the "plone" chart repository
 Update Complete. ⎈Happy Helming!⎈
 END_COMMENT
+
+kubectl create namespace devsandbox
+
+helm install -n devsandbox plone6 plone/plone --set ingress.enabled=false
+: <<'END_COMMENT'
+NAME: plone6
+LAST DEPLOYED: Fri Nov 22 17:42:07 2024
+NAMESPACE: devsandbox
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+1. Get the Plone URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace devsandbox -l "app.kubernetes.io/name=plone,app.kubernetes.io/instance=plone6" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace devsandbox $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace devsandbox port-forward $POD_NAME 8080:$CONTAINER_PORT
+END_COMMENT
+
+# the instructions above will enable access to the backend instance. 
+# If you want access the frontend instance, use the following command:
+# kubectl port-forward -n devsandbox service/plone6-frontend 3000:3000
+
+echo "Done."
+
+# git clone git@github.com:plone/helm-charts.git
+# cd helm-charts
+# ./test.sh
+# helm install -n devsandbox plone6 ./plone6-volto-pg-nginx-varnish --dry-run

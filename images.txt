@@ -1,1 +1,9 @@
 ubuntu:latest
+plone/plone-zeo:5.3.0
+plone/plone-backend:6.0.5
+plone/plone-frontend:16.21.2
+plone/plone-backend:latest
+plone/plone-frontend:latest
+nginx:latest
+postgres:16
+varnish:stable
