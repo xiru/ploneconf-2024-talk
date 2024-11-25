@@ -92,26 +92,26 @@ metadata:
     app.kubernetes.io/version: "6.0.10"
     app.kubernetes.io/managed-by: Helm
 data:
-  zope.conf:  |-
+  zope.conf: |-
     %define INSTANCE $(INSTANCE)
     instancehome $INSTANCE
-  
+
     %define CLIENTHOME $(INSTANCE)/var
     clienthome $CLIENTHOME
-  
+
     debug-mode false
     security-policy-implementation C
     verbose-security off
     default-zpublisher-encoding utf-8
-  
+
     <environment>
       CHAMELEON_CACHE $INSTANCE/var/cache
     </environment>
-  
+
     <dos_protection>
       form-memory-limit $(ZOPE_FORM_MEMORY_LIMIT)
     </dos_protection>
-  
+
     <zodb_db main>
         # Main database
         cache-size $(ZODB_CACHE_SIZE)
@@ -126,7 +126,7 @@ data:
         </relstorage>
         mount-point /
     </zodb_db>
-  wsgi.ini:  |-
+  wsgi.ini: |-
     [server:main]
     # use = egg:pyruvate#main
     use = egg:waitress#main
@@ -135,57 +135,57 @@ data:
     port = 8080
     threads = 2
     #workers = 2
-  
+
     [app:zope]
     use = egg:Zope#main
     zope_conf = %(here)s/zope.conf
-  
+
     [pipeline:main]
     pipeline =
         egg:Zope#httpexceptions
         zope
-  
+
     [loggers]
     keys = root
-  
+
     [handlers]
     keys = eventlog
-  
+
     [formatters]
     keys = generic
-  
+
     [logger_root]
     level = INFO
     handlers = eventlog
-  
+
     [handler_eventlog]
     class = FileHandler
     args = (r'/dev/stderr', 'a')
     kwargs = {}
     level = NOTSET
     formatter = generic
-  
+
     [formatter_generic]
     format = %(asctime)s %(levelname)s-7.7s [%(name)s:%(lineno)s][%(threadName)s] %(message)s
-  site.zcml:  |-
+  site.zcml: |-
     <configure
         xmlns="http://namespaces.zope.org/zope"
         xmlns:meta="http://namespaces.zope.org/meta"
         xmlns:five="http://namespaces.zope.org/five">
-  
+
       <include package="Zope2.App" />
-  
+
       <!-- Load the meta -->
       <five:loadProducts file="meta.zcml"/>
-  
+
       <!-- Load the configuration -->
       <five:loadProducts />
-  
+
       <!-- Load the configuration overrides-->
       <five:loadProductsOverrides />
-  
+
     </configure>
-  zodbpack.conf:  |-
+  zodbpack.conf: |-
     <relstorage>
       pack-gc true
       <postgresql>
@@ -199,7 +199,6 @@ apiVersion: v1
 metadata:
   name: plone6-nginx
   labels:
-    
     helm.sh/chart: nginx-0.1.0
     app.kubernetes.io/name: nginx
     app.kubernetes.io/instance: plone6
@@ -429,12 +428,10 @@ spec:
         app.kubernetes.io/name: frontend
         app.kubernetes.io/instance: plone6
     spec:
-      securityContext:
-        null
+      securityContext: null
       containers:
         - name: frontend
-          securityContext:
-            null
+          securityContext: null
           image: "docker.io/plone/plone-frontend:latest"
           imagePullPolicy: IfNotPresent
           ports:
@@ -450,8 +447,7 @@ spec:
             httpGet:
               path: /
               port: http
-          resources:
-            {}
+          resources: {}
 ---
 # Source: plone6-volto-pg-nginx-varnish/charts/nginx/templates/deployment.yaml
 apiVersion: apps/v1
@@ -478,16 +474,14 @@ spec:
     spec:
       containers:
         - name: nginx
-          securityContext:
-            null
+          securityContext: null
           image: "nginx:latest"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8081
               protocol: TCP
-          resources:
-            {}
+          resources: {}
           volumeMounts:
             - mountPath: /etc/nginx/conf.d
               name: nginx-config
@@ -523,16 +517,14 @@ spec:
         app.kubernetes.io/name: backend
         app.kubernetes.io/instance: plone6
     spec:
-      securityContext:
-        null
+      securityContext: null
       volumes:
         - name: backend-config
           configMap:
             name: plone6-backend
       containers:
         - name: backend
-          securityContext:
-            null
+          securityContext: null
           env:
             - name: INSTANCE
               value: /app
@@ -562,7 +554,7 @@ spec:
             - name: ZOPE_FORM_MEMORY_LIMIT
               value: 5MB
           image: "docker.io/plone/plone-backend:latest"
-          imagePullPolicy: 
+          imagePullPolicy:
           command: ["/app/bin/runwsgi", "/app/etc/wsgi.ini"]
           ports:
             - name: http
@@ -590,8 +582,7 @@ spec:
             - mountPath: /app/etc
               name: backend-config
               readOnly: true
-          resources:
-            {}
+          resources: {}
 ---
 # Source: plone6-volto-pg-nginx-varnish/charts/postgresql/templates/statefulset.yaml
 apiVersion: apps/v1
@@ -619,8 +610,7 @@ spec:
         app.kubernetes.io/version: "16"
         app.kubernetes.io/managed-by: Helm
     spec:
-      securityContext:
-        {}
+      securityContext: {}
       restartPolicy: Always
       containers:
         - name: postgresql
@@ -642,15 +632,13 @@ spec:
                   key: database-user
             - name: PGDATA
               value: /var/lib/postgresql/data/userdata
-          securityContext:
-            {}
+          securityContext: {}
           image: "postgres:16"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
               protocol: TCP
-          resources:
-            {}
+          resources: {}
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
               name: data
@@ -685,13 +673,11 @@ spec:
         app.kubernetes.io/version: "1.16.0"
         app.kubernetes.io/managed-by: Helm
     spec:
-      securityContext:
-        {}
+      securityContext: {}
       restartPolicy: Always
       containers:
         - name: varnish
-          securityContext:
-            {}
+          securityContext: {}
           image: "varnish:stable"
           imagePullPolicy: IfNotPresent
           ports:
@@ -706,8 +692,7 @@ spec:
             httpGet:
               path: /
               port: http
-          resources:
-            {}
+          resources: {}
           volumeMounts:
             - mountPath: /etc/varnish
               name: varnish-config
@@ -723,7 +708,6 @@ kind: CronJob
 metadata:
   name: plone6-zodbpack
   labels:
-    
     helm.sh/chart: backend-0.1.0
     app.kubernetes.io/name: backend
     app.kubernetes.io/instance: plone6
@@ -738,35 +722,34 @@ spec:
     spec:
       template:
         spec:
-          securityContext:
-            null
+          securityContext: null
           volumes:
             - name: backend-config
               configMap:
                 name: plone6-backend
           containers:
             - env:
-              - name: INSTANCE
-                value: /app
-              - name: DBHOST
-                value: plone6-postgresql
-              - name: DBPORT
-                value: "5432"
-              - name: DBNAME
-                valueFrom:
-                  secretKeyRef:
-                    name: plonedb
-                    key: database-name
-              - name: DBUSER
-                valueFrom:
-                  secretKeyRef:
-                    name: plonedb
-                    key: database-user
-              - name: DBPASSWORD
-                valueFrom:
-                  secretKeyRef:
-                    name: plonedb
-                    key: database-password
+                - name: INSTANCE
+                  value: /app
+                - name: DBHOST
+                  value: plone6-postgresql
+                - name: DBPORT
+                  value: "5432"
+                - name: DBNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: plonedb
+                      key: database-name
+                - name: DBUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: plonedb
+                      key: database-user
+                - name: DBPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: plonedb
+                      key: database-password
               name: zodbpack
               image: "docker.io/plone/plone-backend:latest"
               imagePullPolicy: IfNotPresent
@@ -775,8 +758,7 @@ spec:
                 - mountPath: /app/etc
                   name: backend-config
                   readOnly: true
-              resources:
-               {}
+              resources: {}
           restartPolicy: Never
 ---
 # Source: plone6-volto-pg-nginx-varnish/charts/nginx/templates/ingress.yaml
@@ -802,4 +784,3 @@ spec:
                 name: plone6-nginx
                 port:
                   number: 8081
-
