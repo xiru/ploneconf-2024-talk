@@ -1,0 +1,805 @@
+NAME: plone6
+LAST DEPLOYED: Sun Nov 24 17:00:55 2024
+NAMESPACE: devsandbox
+STATUS: pending-install
+REVISION: 1
+TEST SUITE: None
+HOOKS:
+MANIFEST:
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/backend/templates/statefulset.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plone6-backend-pdb
+  labels:
+    helm.sh/chart: backend-0.1.0
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "6.0.10"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app: plone6-backend
+      app.kubernetes.io/name: backend
+      app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/frontend/templates/deployment.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plone6-frontend-pdb
+  labels:
+    helm.sh/chart: frontend-0.1.0
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "16.24.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/nginx/templates/deployment.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plone6-nginx-pdb
+  labels:
+    helm.sh/chart: nginx-0.1.0
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1-120"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx
+      app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/varnish/templates/statefulset.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plone6-varnish-pdb
+  labels:
+    helm.sh/chart: varnish-0.1.0
+    app.kubernetes.io/name: varnish
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: varnish
+      app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/backend/templates/configmap.yaml
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: plone6-backend
+  labels:
+    helm.sh/chart: backend-0.1.0
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "6.0.10"
+    app.kubernetes.io/managed-by: Helm
+data:
+  zope.conf:  |-
+    %define INSTANCE $(INSTANCE)
+    instancehome $INSTANCE
+  
+    %define CLIENTHOME $(INSTANCE)/var
+    clienthome $CLIENTHOME
+  
+    debug-mode false
+    security-policy-implementation C
+    verbose-security off
+    default-zpublisher-encoding utf-8
+  
+    <environment>
+      CHAMELEON_CACHE $INSTANCE/var/cache
+    </environment>
+  
+    <dos_protection>
+      form-memory-limit $(ZOPE_FORM_MEMORY_LIMIT)
+    </dos_protection>
+  
+    <zodb_db main>
+        # Main database
+        cache-size $(ZODB_CACHE_SIZE)
+        %import relstorage
+        <relstorage>
+            blob-dir $INSTANCE/var/blobstorage
+            shared-blob-dir false
+            blob-cache-size  $(BLOB_CACHE_SIZE)
+            <postgresql>
+                dsn dbname='$(DBNAME)' user='$(DBUSER)' host='$(DBHOST)' port=$(DBPORT) password='$(DBPASSWORD)'
+            </postgresql>
+        </relstorage>
+        mount-point /
+    </zodb_db>
+  wsgi.ini:  |-
+    [server:main]
+    # use = egg:pyruvate#main
+    use = egg:waitress#main
+    # socket = 0.0.0.0:8080
+    host = 0.0.0.0
+    port = 8080
+    threads = 2
+    #workers = 2
+  
+    [app:zope]
+    use = egg:Zope#main
+    zope_conf = %(here)s/zope.conf
+  
+    [pipeline:main]
+    pipeline =
+        egg:Zope#httpexceptions
+        zope
+  
+    [loggers]
+    keys = root
+  
+    [handlers]
+    keys = eventlog
+  
+    [formatters]
+    keys = generic
+  
+    [logger_root]
+    level = INFO
+    handlers = eventlog
+  
+    [handler_eventlog]
+    class = FileHandler
+    args = (r'/dev/stderr', 'a')
+    kwargs = {}
+    level = NOTSET
+    formatter = generic
+  
+    [formatter_generic]
+    format = %(asctime)s %(levelname)s-7.7s [%(name)s:%(lineno)s][%(threadName)s] %(message)s
+  site.zcml:  |-
+    <configure
+        xmlns="http://namespaces.zope.org/zope"
+        xmlns:meta="http://namespaces.zope.org/meta"
+        xmlns:five="http://namespaces.zope.org/five">
+  
+      <include package="Zope2.App" />
+  
+      <!-- Load the meta -->
+      <five:loadProducts file="meta.zcml"/>
+  
+      <!-- Load the configuration -->
+      <five:loadProducts />
+  
+      <!-- Load the configuration overrides-->
+      <five:loadProductsOverrides />
+  
+    </configure>
+  zodbpack.conf:  |-
+    <relstorage>
+      pack-gc true
+      <postgresql>
+        dsn dbname='$(DBNAME)' user='$(DBUSER)' host='$(DBHOST)' port='$(DBPORT)' password='$(DBPASSWORD)'
+      </postgresql>
+    </relstorage>
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/nginx/templates/configmap.yaml
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: plone6-nginx
+  labels:
+    
+    helm.sh/chart: nginx-0.1.0
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1-120"
+    app.kubernetes.io/managed-by: Helm
+data:
+  plone.conf: |-
+    server_names_hash_bucket_size 128;
+
+    upstream backend {
+      server plone6-varnish:6081;
+    }
+    upstream frontend {
+      server plone6-frontend:3000;
+    }
+
+    server {
+      listen 8081;
+      listen [::]:8081;
+      server_name localhost;
+      server_name_in_redirect on;
+
+      root /opt/app-root/src;
+
+      location ~ /\+\+api\+\+($|/.*) {
+        rewrite ^/(\+\+api\+\+/?)+($|/.*) /VirtualHostBase/http/$server_name:$server_port/Plone/++api++/VirtualHostRoot/$2 break;
+        proxy_pass http://backend;
+      }
+
+      location ~ / {
+        location ~* \.(js|jsx|css|less|swf|eot|ttf|otf|woff|woff2)$ {
+          add_header Cache-Control "public";
+          expires +1y;
+          proxy_pass http://frontend;
+        }
+        location ~* static.*\.(ico|jpg|jpeg|png|gif|svg)$ {
+          add_header Cache-Control "public";
+          expires +1y;
+          proxy_pass http://frontend;
+        }
+
+        proxy_set_header Host $host:$server_port;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto http;
+        proxy_pass http://frontend;
+      }
+    }
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/varnish/templates/configmap.yaml
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: plone6-varnish
+  labels:
+    helm.sh/chart: varnish-0.1.0
+    app.kubernetes.io/name: varnish
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  default.vcl: |-
+    # https://www.varnish-software.com/developers/tutorials/multiple-backends/#loadbalancing-requests-between-multiple-backends
+
+    vcl 4.1;
+
+    import directors;
+    backend backend0 {
+        .host = "plone6-backend-0.plone6-backend-director";
+        .port = "8080";
+    }
+    backend backend1 {
+        .host = "plone6-backend-1.plone6-backend-director";
+        .port = "8080";
+    }
+
+    sub vcl_init {
+        new vdir = directors.round_robin();
+        vdir.add_backend(backend0);
+        vdir.add_backend(backend1);
+    }
+
+    sub vcl_recv {
+        set req.backend_hint = vdir.backend();
+    }
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/backend/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plone6-backend
+  labels:
+    helm.sh/chart: backend-0.1.0
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "6.0.10"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      name: backend-http
+  selector:
+    app: plone6-backend
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/backend/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plone6-backend-director
+  labels:
+    helm.sh/chart: backend-0.1.0
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "6.0.10"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: plone6-backend
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/frontend/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plone6-frontend
+  labels:
+    helm.sh/chart: frontend-0.1.0
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "16.24.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      name: frontend-http
+  selector:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/nginx/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plone6-nginx
+  labels:
+    helm.sh/chart: nginx-0.1.0
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1-120"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/postgresql/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plone6-postgresql
+  labels:
+    helm.sh/chart: postgresql-0.1.0
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "16"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/varnish/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plone6-varnish
+  labels:
+    helm.sh/chart: varnish-0.1.0
+    app.kubernetes.io/name: varnish
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6081
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: varnish
+    app.kubernetes.io/instance: plone6
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/frontend/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plone6-frontend
+  labels:
+    helm.sh/chart: frontend-0.1.0
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "16.24.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/instance: plone6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/instance: plone6
+    spec:
+      securityContext:
+        null
+      containers:
+        - name: frontend
+          securityContext:
+            null
+          image: "docker.io/plone/plone-frontend:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: "RAZZLE_INTERNAL_API_PATH"
+              value: "http://plone6-backend:8080/Plone"
+            - name: "RAZZLE_DEV_PROXY_API_PATH"
+              value: "http://plone6-backend:8080/Plone"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {}
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/nginx/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plone6-nginx
+  labels:
+    helm.sh/chart: nginx-0.1.0
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1-120"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx
+      app.kubernetes.io/instance: plone6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx
+        app.kubernetes.io/instance: plone6
+    spec:
+      containers:
+        - name: nginx
+          securityContext:
+            null
+          image: "nginx:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          resources:
+            {}
+          volumeMounts:
+            - mountPath: /etc/nginx/conf.d
+              name: nginx-config
+              readOnly: true
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: plone6-nginx
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/backend/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: plone6-backend
+  labels:
+    helm.sh/chart: backend-0.1.0
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "6.0.10"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 2
+  serviceName: plone6-backend-director
+  selector:
+    matchLabels:
+      app: plone6-backend
+      app.kubernetes.io/name: backend
+      app.kubernetes.io/instance: plone6
+  template:
+    metadata:
+      labels:
+        app: plone6-backend
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/instance: plone6
+    spec:
+      securityContext:
+        null
+      volumes:
+        - name: backend-config
+          configMap:
+            name: plone6-backend
+      containers:
+        - name: backend
+          securityContext:
+            null
+          env:
+            - name: INSTANCE
+              value: /app
+            - name: DBHOST
+              value: plone6-postgresql
+            - name: DBPORT
+              value: "5432"
+            - name: DBNAME
+              valueFrom:
+                secretKeyRef:
+                  name: plonedb
+                  key: database-name
+            - name: DBUSER
+              valueFrom:
+                secretKeyRef:
+                  name: plonedb
+                  key: database-user
+            - name: DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: plonedb
+                  key: database-password
+            - name: BLOB_CACHE_SIZE
+              value: 1gb
+            - name: ZODB_CACHE_SIZE
+              value: "50000"
+            - name: ZOPE_FORM_MEMORY_LIMIT
+              value: 5MB
+          image: "docker.io/plone/plone-backend:latest"
+          imagePullPolicy: 
+          command: ["/app/bin/runwsgi", "/app/etc/wsgi.ini"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              initialDelaySeconds: 30
+              path: /
+              periodSeconds: 10
+              port: http
+              successThreshold: 1
+              timeoutSeconds: 15
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              initialDelaySeconds: 10
+              path: /
+              periodSeconds: 10
+              port: http
+              successThreshold: 1
+              timeoutSeconds: 15
+          volumeMounts:
+            - mountPath: /app/etc
+              name: backend-config
+              readOnly: true
+          resources:
+            {}
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/postgresql/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: plone6-postgresql
+  labels:
+    helm.sh/chart: postgresql-0.1.0
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "16"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/instance: plone6
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: postgresql-0.1.0
+        app.kubernetes.io/name: postgresql
+        app.kubernetes.io/instance: plone6
+        app.kubernetes.io/version: "16"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      securityContext:
+        {}
+      restartPolicy: Always
+      containers:
+        - name: postgresql
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: plonedb
+                  key: database-name
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: plonedb
+                  key: database-password
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: plonedb
+                  key: database-user
+            - name: PGDATA
+              value: /var/lib/postgresql/data/userdata
+          securityContext:
+            {}
+          image: "postgres:16"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          resources:
+            {}
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: db-pvc
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/varnish/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: plone6-varnish
+  labels:
+    helm.sh/chart: varnish-0.1.0
+    app.kubernetes.io/name: varnish
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: varnish
+      app.kubernetes.io/instance: plone6
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: varnish-0.1.0
+        app.kubernetes.io/name: varnish
+        app.kubernetes.io/instance: plone6
+        app.kubernetes.io/version: "1.16.0"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      securityContext:
+        {}
+      restartPolicy: Always
+      containers:
+        - name: varnish
+          securityContext:
+            {}
+          image: "varnish:stable"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              protocol: TCP
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {}
+          volumeMounts:
+            - mountPath: /etc/varnish
+              name: varnish-config
+              readOnly: true
+      volumes:
+        - name: varnish-config
+          configMap:
+            name: plone6-varnish
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/backend/templates/zodbpack.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: plone6-zodbpack
+  labels:
+    
+    helm.sh/chart: backend-0.1.0
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "6.0.10"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  schedule: 45 9 * * *
+  concurrencyPolicy: "Forbid"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            null
+          volumes:
+            - name: backend-config
+              configMap:
+                name: plone6-backend
+          containers:
+            - env:
+              - name: INSTANCE
+                value: /app
+              - name: DBHOST
+                value: plone6-postgresql
+              - name: DBPORT
+                value: "5432"
+              - name: DBNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: plonedb
+                    key: database-name
+              - name: DBUSER
+                valueFrom:
+                  secretKeyRef:
+                    name: plonedb
+                    key: database-user
+              - name: DBPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: plonedb
+                    key: database-password
+              name: zodbpack
+              image: "docker.io/plone/plone-backend:latest"
+              imagePullPolicy: IfNotPresent
+              command: ["/app/bin/zodbpack", "/app/etc/zodbpack.conf"]
+              volumeMounts:
+                - mountPath: /app/etc
+                  name: backend-config
+                  readOnly: true
+              resources:
+               {}
+          restartPolicy: Never
+---
+# Source: plone6-volto-pg-nginx-varnish/charts/nginx/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plone6-nginx
+  labels:
+    helm.sh/chart: nginx-0.1.0
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: plone6
+    app.kubernetes.io/version: "1-120"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  rules:
+    - host: "localhost"
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plone6-nginx
+                port:
+                  number: 8081
+
